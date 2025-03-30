@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map with Marker and Path</title>
+    <!-- Include Google Maps API with your API key -->
+    <script async defer src="paste ur API KEY HERE"></script>
+    <style>
+        /* Set the size of the map container */
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- The div element for the map -->
+    <div id="map"></div>
+
+    <!-- Input for destination -->
+    <input type="text" id="destination-input" placeholder="Enter destination...">
+    <button onclick="searchDestination()">Search</button>
+
+    <script>
+        var map, directionsService, directionsRenderer;
+        var currentLatLng, destinationLatLng;
+
+        // Initialize and display the map
+        function initMap() {
+            // Get the current location using Geolocation API
+            navigator.geolocation.getCurrentPosition(function(position) {
+                currentLatLng = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+
+                // Create a map object and associate it with the map element
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: currentLatLng, // Set the center of the map to the current location
+                    zoom: 10 // Set the zoom level
+                });
+
+                // Create a marker for the current location
+                var currentMarker = new google.maps.Marker({
+                    position: currentLatLng,
+                    map: map,
+                    title: 'Your Location'
+                });
+
+                // Initialize DirectionsService and DirectionsRenderer
+                directionsService = new google.maps.DirectionsService();
+                directionsRenderer = new google.maps.DirectionsRenderer();
+                directionsRenderer.setMap(map);
+            });
+        }
+
+
+        function searchDestination() {
+            var destinationInput = document.getElementById('destination-input').value;
+
+            // Use Google Geocoding API to convert place name into coordinates
+            var geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: destinationInput }, function(results, status) {
+                if (status === 'OK' && results[0]) {
+                    destinationLatLng = results[0].geometry.location;
+
+                    // Call function to display route
+                    displayRoutes(destinationLatLng);
+
+                    // Plot waypoints
+                    plotWaypoints(destinationLatLng);
+                } else {
+                    alert('Destination not found.');
+                }
+            });
+        }
+
+        // Function to display the routes from current location to the destination
+        function displayRoutes(destinationLatLng) {
+            // Specify the request for directions
+            var request = {
+                origin: currentLatLng,
+                destination: destinationLatLng,
+                travelMode: 'DRIVING'
+            };
+
+            // Retrieve directions and display on the map
+            directionsService.route(request, function(result, status) {
+                if (status == 'OK') {
+                    // Display the route in red color
+                    directionsRenderer.setDirections(result);
+                    directionsRenderer.setOptions({ polylineOptions: { strokeColor: 'red' } });
+                } else {
+                    window.alert('Directions request failed due to ' + status);
+                }
+            });
+        }
+
+        // Function to plot waypoints
+        function plotWaypoints(destinationLatLng) {
+            // Measure distance between current location and destination
+            var distance = google.maps.geometry.spherical.computeDistanceBetween(
+                new google.maps.LatLng(currentLatLng.lat, currentLatLng.lng),
+                new google.maps.LatLng(destinationLatLng.lat(), destinationLatLng.lng())
+            );
+
+            // Calculate 50% of the distance between current location and destination
+            var fiftyPercentDistance = 0.50 * distance;
+
+            // Generate random waypoints within a certain radius around the midpoint
+            var numWaypoints = 5; // Number of waypoints to generate
+            var waypoints = [];
+            for (var i = 0; i < numWaypoints; i++) {
+                var randomAngle = Math.random() * 2 * Math.PI; // Random angle in radians
+                var randomDistance = Math.random() * fiftyPercentDistance; // Random distance up to 50% of total distance
+                var dx = randomDistance * Math.cos(randomAngle);
+                var dy = randomDistance * Math.sin(randomAngle);
+                var waypointLat = destinationLatLng.lat() + (dy / 111111); // 1 degree of latitude is approximately 111111 meters
+                var waypointLng = destinationLatLng.lng() + (dx / (111111 * Math.cos(destinationLatLng.lat() * Math.PI / 180))); // Correct for longitude scaling
+                waypoints.push({ lat: waypointLat, lng: waypointLng });
+            }
+
+            // Plot waypoints on the map
+            waypoints.forEach(function(waypoint) {
+                // Add marker for each waypoint
+                var marker = new google.maps.Marker({
+                    position: waypoint,
+                    map: map,
+                    title: 'Waypoint'
+                });
+
+                // Create a request for each waypoint to destination route
+                var requestToDestination = {
+                    origin: waypoint,
+                    destination: destinationLatLng,
+                    travelMode: 'DRIVING'
+                };
+
+                // Retrieve directions from waypoint to destination and display on the map
+                directionsService.route(requestToDestination, function(result, status) {
+                    if (status == 'OK') {
+                        var route = new google.maps.DirectionsRenderer({
+                            map: map,
+                            directions: result,
+                            suppressMarkers: true // Suppress default markers
+                        });
+                    } else {
+                        window.alert('Directions request failed due to ' + status);
+                    }
+                });
+
+                // Create a request for each current location to waypoint route
+                var requestToWaypoint = {
+                    origin: currentLatLng,
+                    destination: waypoint,
+                    travelMode: 'DRIVING'
+                };
+
+                // Retrieve directions from current location to waypoint and display on the map
+                directionsService.route(requestToWaypoint, function(result, status) {
+                    if (status == 'OK') {
+                        var route = new google.maps.DirectionsRenderer({
+                            map: map,
+                            directions: result,
+                            suppressMarkers: true // Suppress default markers
+                        });
+                    } else {
+                        window.alert('Directions request failed due to ' + status);
+                    }
+                });
+            });
+        }
+
+        // Call the initMap function when the page has finished loading
+        initMap();
+    </script>
+</body>
+</html>
+
